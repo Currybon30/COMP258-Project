@@ -1,0 +1,7 @@
+Flask
+Flask-GraphQL
+graphene
+tensorflow
+scikit-learn
+pandas
+python-dotenv
