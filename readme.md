@@ -1,7 +1,3 @@
-Here’s a cleaner, more organized version of your README, formatted for direct use as a `.md` file:
-
----
-
 # Student Persistence Predictor
 
 This project integrates a **backend** built with Flask and TensorFlow and a **frontend** developed using React. It allows admins to manage machine learning models and pipelines while offering predictions on student persistence based on input data.
