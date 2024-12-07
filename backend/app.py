@@ -12,7 +12,6 @@ import pandas as pd
 
 # Define combine_features function
 def combine_features(X):
-    # Custom logic for combining or transforming features
     mean_cols = ['High School Average Mark', 'Math Score']
     mode_cols = ['Prev Education', 'Age Group', 'English Grade']
     fill_with_0_cols = ['1st Term GPA', '2nd Term GPA']
@@ -22,11 +21,13 @@ def combine_features(X):
     column_names = mean_cols + fill_with_0_cols + fill_with_3_cols + mode_cols + passthrough_cols
     df_handle_missing = pd.DataFrame(X, columns=column_names)
     
-    # Fill missing values
-    df_handle_missing[mean_cols] = df_handle_missing[mean_cols].fillna(df_handle_missing[mean_cols].mean())
-    df_handle_missing[fill_with_0_cols] = df_handle_missing[fill_with_0_cols].fillna(0)
-    df_handle_missing[fill_with_3_cols] = df_handle_missing[fill_with_3_cols].fillna(3)
-    df_handle_missing[mode_cols] = df_handle_missing[mode_cols].fillna(df_handle_missing[mode_cols].mode().iloc[0])
+    # Convert the columns to the appropriate types
+    num_cols = ['High School Average Mark', 'Math Score', '1st Term GPA', '2nd Term GPA']
+    cat_cols = ['First Language', 'Funding', 'Fast Track', 'Coop', 'Residency', 'Gender', 'Prev Education', 'Age Group', 'English Grade']
+    
+    df_handle_missing[num_cols] = df_handle_missing[num_cols].apply(pd.to_numeric, errors='coerce')
+    df_handle_missing[cat_cols] = df_handle_missing[cat_cols].astype('int')
+    df_handle_missing[cat_cols] = df_handle_missing[cat_cols].astype('object')
     
     return df_handle_missing
 
@@ -54,6 +55,15 @@ current_pipeline = joblib.load(current_pipeline_path)
 
 # Protect admin endpoints with API key
 @app.before_request
+def handle_options_requests():
+    if request.method == "OPTIONS":
+        response = jsonify({"message": "CORS preflight"})
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:3000")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization,x-api-key")
+        response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+        response.headers.add("Access-Control-Allow-Credentials", "true")
+        return response, 200
+    
 def require_api_key():
     if request.endpoint in ["list_models", "list_pipelines", "change_model"]:
         api_key = request.headers.get("x-api-key")
@@ -62,7 +72,7 @@ def require_api_key():
 
 # List available models
 @app.route('/admin/models', methods=['GET'])
-def list_models():
+def list_models():    
     available_models = [f for f in os.listdir(MODEL_DIR) if f.endswith(".keras")]
     return jsonify({"available_models": available_models})
 
@@ -94,7 +104,6 @@ def change_model():
     return jsonify({"message": f"Model switched to {model_name} and pipeline to {pipeline_name}."})
 
 # Upload a new model
-# Upload a new model
 @app.route('/admin/upload_model', methods=['POST'])
 def upload_model():
     try:
@@ -120,9 +129,17 @@ def upload_model():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Prediction endpoint
+
 @app.route('/predict', methods=['POST'])
 def predict():
+    if request.method == 'OPTIONS':
+        # Handle the preflight request
+        response = jsonify({"message": "CORS preflight"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
     try:
         input_data = request.json
         df = pd.DataFrame([input_data])  # Convert input to DataFrame
@@ -133,10 +150,33 @@ def predict():
         # Make prediction using the active model
         prediction = current_model.predict(preprocessed_data)
         
+        # Extract probability and decision (persist or not persist)
+        confidence = float(prediction[0][0])  # Assumes binary classification with single output
+        persist = confidence >= 0.5  # Threshold for classification
+
         # Return the result
-        return jsonify({'prediction': prediction.tolist()})
+        return jsonify({
+            'persist': persist,
+            'confidence': confidence
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# Dummy user credentials (replace with a proper user database or authentication system)
+VALID_USERNAME = "admin"
+VALID_PASSWORD = "test123"
+
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    if username == VALID_USERNAME and password == VALID_PASSWORD:
+        # Simulate token creation
+        return jsonify({"message": "Login successful", "token": "valid_admin_token"}), 200
+    else:
+        return jsonify({"message": "Invalid username or password"}), 401
 
 if __name__ == '__main__':
     app.run(debug=False)
