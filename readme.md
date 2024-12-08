@@ -187,6 +187,3 @@ Contributions are welcome! Feel free to open issues or submit pull requests.
 
 This project is licensed under the [MIT License](LICENSE).
 
----
-
-This format is cleaner and easier to copy into a `.md` file. Let me know if you'd like further changes!
