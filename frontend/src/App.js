@@ -19,6 +19,11 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/predict" element={
+          <ProtectedRoute>
+            <StudentPersistenceForm />
+          </ProtectedRoute>
+        } />
       </Routes>
     </Router>
   );

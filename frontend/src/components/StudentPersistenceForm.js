@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../styles/StudentPersistenceForm.css';
+import { useNavigate } from 'react-router-dom';
 
 const StudentPersistenceForm = () => {
   const [formData, setFormData] = useState({
@@ -21,14 +22,30 @@ const StudentPersistenceForm = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [chosenModel, setChosenModel] = useState("");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const model = localStorage.getItem("chosen_model");
+    setChosenModel(model);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
+    
+    setFormData((prevState) => ({
       ...prevState,
-      [name]: value
+      [name]: value,
     }));
   };
+
+    // Handle logout functionality
+    const handleLogout = () => {
+      localStorage.removeItem("token"); // Remove the saved token
+      localStorage.removeItem("username"); // Optional: Clear saved username
+      navigate("/"); // Redirect back to the login page
+    };
+  
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,23 +53,32 @@ const StudentPersistenceForm = () => {
     setError(null);
     setResult(null);
   
-    const adjustedFormData = {
-      "1st Term GPA": parseFloat(formData.firstTermGpa),
-      "2nd Term GPA": parseFloat(formData.secondTermGpa),
-      "First Language": parseInt(formData.firstLanguage),
-      "Funding": parseInt(formData.funding),
-      "Fast Track": parseInt(formData.fastTrack),
-      "Coop": parseInt(formData.coop),
-      "Residency": parseInt(formData.residency),
-      "Gender": parseInt(formData.gender),
-      "Prev Education": parseInt(formData.prevEducation),
-      "Age Group": parseInt(formData.ageGroup),
-      "High School Average Mark": parseFloat(formData.highSchoolAverage),
-      "Math Score": parseFloat(formData.mathScore),
-      "English Grade": parseInt(formData.englishGrade),
-    };
+    const adjustedFormData =
+    chosenModel === "model2.keras"
+      ? {
+          "1st Term GPA": formData.firstTermGpa ? parseFloat(formData.firstTermGpa) : 0.0,
+          "High School Average Mark": formData.highSchoolAverage ? parseFloat(formData.highSchoolAverage) : 0.0,
+          "Math Score": formData.mathScore ? parseFloat(formData.mathScore) : 0.0,
+        }
+      : {
+          "1st Term GPA": formData.firstTermGpa ? parseFloat(formData.firstTermGpa) : 0.0,
+          "2nd Term GPA": formData.secondTermGpa ? parseFloat(formData.secondTermGpa) : 0.0,
+          "First Language": parseInt(formData.firstLanguage) || 0,
+          "Funding": parseInt(formData.funding) || 0,
+          "Fast Track": parseInt(formData.fastTrack) || 0,
+          "Coop": parseInt(formData.coop) || 0,
+          "Residency": parseInt(formData.residency) || 0,
+          "Gender": parseInt(formData.gender) || 0,
+          "Prev Education": parseInt(formData.prevEducation) || 0,
+          "Age Group": parseInt(formData.ageGroup) || 0,
+          "High School Average Mark": formData.highSchoolAverage ? parseFloat(formData.highSchoolAverage) : 0.0,
+          "Math Score": formData.mathScore ? parseFloat(formData.mathScore) : 0.0,
+          "English Grade": parseInt(formData.englishGrade) || 0,
+        };
+
   
     try {
+      console.log('Adjusted form data:', adjustedFormData);
       const response = await axios.post('http://localhost:5000/predict', adjustedFormData, {
         headers: {
           'Content-Type': 'application/json',
@@ -70,14 +96,30 @@ const StudentPersistenceForm = () => {
       setLoading(false);
     }
   };
-  
-  
-  
+    
+  const isDisabled = (field) => {
+    return (
+      chosenModel === "model2.keras" &&
+      !["firstTermGpa", "highSchoolAverage", "mathScore"].includes(field)
+    );
+  };
 
   return (
     <div className="form-container">
-      <h2 className="form-title">Student Persistence Predictor</h2>
-      <p className="form-description">Enter student information to predict persistence.</p>
+      {/* Logout Button */}
+      <button className="logout-button" onClick={handleLogout}>
+        Logout
+      </button>
+      <h2 className="form-title">
+        {localStorage.getItem("chosen_model") === "model2.keras"
+          ? "Student's Predicted GPA"
+          : "Student Persistence Predictor"}
+      </h2>
+      <p className="form-description">
+        {localStorage.getItem("chosen_model") === "model2.keras"
+          ? "Enter student information to predict GPA."
+          : "Enter student information to predict persistence."}
+      </p>
       <form onSubmit={handleSubmit}>
         <div className="form-row">
           <div className="form-group">
@@ -87,10 +129,11 @@ const StudentPersistenceForm = () => {
               id="firstTermGpa"
               name="firstTermGpa"
               value={formData.firstTermGpa}
+              disabled={isDisabled("firstTermGpa")}
               onChange={handleChange}
-              min="0"
+              min="0.0"
               max="4.5"
-              step="any"
+              step="0.1"
               required
               className="form-input"
             />
@@ -103,6 +146,7 @@ const StudentPersistenceForm = () => {
               name="secondTermGpa"
               value={formData.secondTermGpa}
               onChange={handleChange}
+              disabled={isDisabled("secondTermGpa")}
               min="0"
               max="4.5"
               step="any"
@@ -118,6 +162,7 @@ const StudentPersistenceForm = () => {
             name="firstLanguage"
             value={formData.firstLanguage}
             onChange={handleChange}
+            disabled={isDisabled("firstLanguage")}
             required
             className="form-select"
           >
@@ -134,6 +179,7 @@ const StudentPersistenceForm = () => {
             name="funding"
             value={formData.funding}
             onChange={handleChange}
+            disabled={isDisabled("funding")}
             required
             className="form-select"
           >
@@ -157,6 +203,7 @@ const StudentPersistenceForm = () => {
               name="fastTrack"
               value={formData.fastTrack}
               onChange={handleChange}
+              disabled={isDisabled("fastTrack")}
               required
               className="form-select"
             >
@@ -171,6 +218,7 @@ const StudentPersistenceForm = () => {
               name="coop"
               value={formData.coop}
               onChange={handleChange}
+              disabled={isDisabled("coop")}
               required
               className="form-select"
             >
@@ -188,6 +236,7 @@ const StudentPersistenceForm = () => {
               name="residency"
               value={formData.residency}
               onChange={handleChange}
+              disabled={isDisabled("residency")}
               required
               className="form-select"
             >
@@ -202,6 +251,7 @@ const StudentPersistenceForm = () => {
               name="gender"
               value={formData.gender}
               onChange={handleChange}
+              disabled={isDisabled("gender")}
               required
               className="form-select"
             >
@@ -219,6 +269,7 @@ const StudentPersistenceForm = () => {
             name="prevEducation"
             value={formData.prevEducation}
             onChange={handleChange}
+            disabled={isDisabled("prevEducation")}
             required
             className="form-select"
           >
@@ -234,6 +285,7 @@ const StudentPersistenceForm = () => {
             name="ageGroup"
             value={formData.ageGroup}
             onChange={handleChange}
+            disabled={isDisabled("ageGroup")}
             required
             className="form-select"
           >
@@ -260,6 +312,7 @@ const StudentPersistenceForm = () => {
               name="highSchoolAverage"
               value={formData.highSchoolAverage}
               onChange={handleChange}
+              disabled={isDisabled("highSchoolAverage")}
               min="0"
               max="100"
               step="0.1"
@@ -275,6 +328,7 @@ const StudentPersistenceForm = () => {
               name="mathScore"
               value={formData.mathScore}
               onChange={handleChange}
+              disabled={isDisabled("mathScore")}
               min="0"
               max="50"
               step="0.1"
@@ -290,6 +344,7 @@ const StudentPersistenceForm = () => {
             name="englishGrade"
             value={formData.englishGrade}
             onChange={handleChange}
+            disabled={isDisabled("englishGrade")}
             required
             className="form-select"
           >
@@ -313,7 +368,7 @@ const StudentPersistenceForm = () => {
           className="form-button"
           disabled={loading}
         >
-          {loading ? 'Predicting...' : 'Predict Persistence'}
+          {loading ? 'Predicting...' : 'Predict'}
         </button>
       </form>
 
@@ -331,12 +386,19 @@ const StudentPersistenceForm = () => {
         >
           <strong>Prediction Result:</strong>
           <p>
-            The student is predicted to {result.persist ? 'persist' : 'not persist'}.
-            <br />
-            Confidence: {(result.confidence * 100).toFixed(2)}%
+            {localStorage.getItem("chosen_model") !== "model2.keras" && (
+              <>
+                The student is predicted to {result.persist ? 'persist' : 'not persist'}.
+                <br />
+              </>
+            )}
+            {localStorage.getItem("chosen_model") === "model2.keras"
+              ? `Student's predicted 2nd Term GPA: ${(result.confidence).toFixed(2)}`
+              : `Confidence: ${(result.confidence * 100).toFixed(2)}%`}
           </p>
         </div>
       )}
+
 
     </div>
   );

@@ -8,7 +8,7 @@ import sklearn.pipeline
 from sklearn.preprocessing import FunctionTransformer
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-import pandas as pd
+import json  # NEW: To persist selected model/pipeline
 
 # Define combine_features function
 def combine_features(X):
@@ -43,6 +43,8 @@ CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}}, supports_cred
 # Directories
 MODEL_DIR = "./model/"
 PIPELINE_DIR = "./pipeline/"
+CONFIG_FILE = "./model/selected_model.json"
+USER_FILE = "./users.json" 
 
 # API Key for Admin
 API_KEY = "zu9gLCNscr8vlAKXqZ6zMH4bXIAfI43H"
@@ -50,8 +52,24 @@ API_KEY = "zu9gLCNscr8vlAKXqZ6zMH4bXIAfI43H"
 # Default model and pipeline
 current_model_path = os.path.join(MODEL_DIR, "model1.keras")
 current_pipeline_path = os.path.join(PIPELINE_DIR, "pipeline1.pkl")
+
+# NEW: Load selected model/pipeline from saved config
+if os.path.exists(CONFIG_FILE):
+    with open(CONFIG_FILE, "r") as config_file:
+        config = json.load(config_file)
+        model_name = config.get("model", "model2.keras")
+        pipeline_name = config.get("pipeline", "pipeline2.pkl")
+        current_model_path = os.path.join(MODEL_DIR, model_name)
+        current_pipeline_path = os.path.join(PIPELINE_DIR, pipeline_name)
+        current_model_name = model_name
+
+# Load the model and pipeline
 current_model = tf.keras.models.load_model(current_model_path)
 current_pipeline = joblib.load(current_pipeline_path)
+
+def load_users():
+    with open(USER_FILE, "r") as file:
+        return json.load(file)
 
 # Protect admin endpoints with API key
 @app.before_request
@@ -63,7 +81,7 @@ def handle_options_requests():
         response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
         response.headers.add("Access-Control-Allow-Credentials", "true")
         return response, 200
-    
+
 def require_api_key():
     if request.endpoint in ["list_models", "list_pipelines", "change_model"]:
         api_key = request.headers.get("x-api-key")
@@ -97,31 +115,36 @@ def change_model():
     if not os.path.exists(pipeline_path):
         return jsonify({"error": f"Pipeline {pipeline_name} does not exist"}), 400
 
-    global current_model, current_pipeline
-    current_model = tf.keras.models.load_model(model_path)
-    current_pipeline = joblib.load(pipeline_path)
+    try:
+        global current_model, current_pipeline
+        current_model = tf.keras.models.load_model(model_path)
+        current_pipeline = joblib.load(pipeline_path)
 
-    return jsonify({"message": f"Model switched to {model_name} and pipeline to {pipeline_name}."})
+        # NEW: Persist selection
+        with open(CONFIG_FILE, "w") as config_file:
+            json.dump({"model": model_name, "pipeline": pipeline_name}, config_file)
+            
+            # PRINT STATEMENTS: Confirm the model and pipeline change
+        print(f"Switched to model: {model_name}")
+        print(f"Switched to pipeline: {pipeline_name}")
+
+        return jsonify({"message": f"Model switched to {model_name} and pipeline to {pipeline_name}."})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Upload a new model
 @app.route('/admin/upload_model', methods=['POST'])
 def upload_model():
     try:
-        # Check if the request contains a file
         if 'file' not in request.files:
             return jsonify({"error": "No file part in the request"}), 400
 
         file = request.files['file']
-
-        # Check if the file has a valid filename
         if file.filename == '':
             return jsonify({"error": "No selected file"}), 400
-
-        # Ensure the file is a valid Keras model file
         if not file.filename.endswith('.keras'):
             return jsonify({"error": "Invalid file type. Only .keras files are allowed"}), 400
 
-        # Save the uploaded file to the MODEL_DIR
         filename = secure_filename(file.filename)
         file.save(os.path.join(MODEL_DIR, filename))
 
@@ -129,32 +152,17 @@ def upload_model():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
+# Predict endpoint
 @app.route('/predict', methods=['POST'])
 def predict():
-    if request.method == 'OPTIONS':
-        # Handle the preflight request
-        response = jsonify({"message": "CORS preflight"})
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        return response, 200
-    
     try:
         input_data = request.json
-        df = pd.DataFrame([input_data])  # Convert input to DataFrame
-        
-        # Preprocess data using the active pipeline
+        df = pd.DataFrame([input_data])
         preprocessed_data = current_pipeline.transform(df)
-        
-        # Make prediction using the active model
         prediction = current_model.predict(preprocessed_data)
-        
-        # Extract probability and decision (persist or not persist)
-        confidence = float(prediction[0][0])  # Assumes binary classification with single output
-        persist = confidence >= 0.5  # Threshold for classification
+        confidence = float(prediction[0][0])
+        persist = confidence >= 0.5
 
-        # Return the result
         return jsonify({
             'persist': persist,
             'confidence': confidence
@@ -162,21 +170,18 @@ def predict():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Dummy user credentials (replace with a proper user database or authentication system)
-VALID_USERNAME = "admin"
-VALID_PASSWORD = "test123"
-
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
+    users_data = load_users()
 
-    if username == VALID_USERNAME and password == VALID_PASSWORD:
-        # Simulate token creation
-        return jsonify({"message": "Login successful", "token": "valid_admin_token"}), 200
-    else:
-        return jsonify({"message": "Invalid username or password"}), 401
+    for user in users_data.get("users", []):
+        if user["username"] == username and user["password"] == password:
+            return jsonify({"message": "Login successful", "token": "valid_admin_token"}), 200
+
+    return jsonify({"message": "Invalid username or password"}), 401
 
 if __name__ == '__main__':
     app.run(debug=False)

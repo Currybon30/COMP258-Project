@@ -15,8 +15,15 @@ const Login = () => {
 
     try {
       const response = await axios.post("http://localhost:5000/login", { username, password });
+      
       localStorage.setItem("token", response.data.token); // Save the token
-      navigate("/admin"); // Redirect to admin page
+      localStorage.setItem("username", username);
+      
+      if (username === "admin") {
+        navigate("/admin"); // Redirect to admin page
+      } else {
+        navigate("/predict"); // Redirect to predict page
+      }
     } catch (err) {
       console.error(err);
       setError("Invalid username or password");

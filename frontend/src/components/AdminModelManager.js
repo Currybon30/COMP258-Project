@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "../styles/AdminModelManager.css";
+import { useNavigate } from "react-router-dom";
 
 const AdminModelManager = () => {
   const [availableModels, setAvailableModels] = useState([]);
@@ -9,7 +10,14 @@ const AdminModelManager = () => {
   const [selectedPipeline, setSelectedPipeline] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [redirectToPredict, setRedirectToPredict] = useState(false);
+  const navigate = useNavigate();
   const API_KEY = "zu9gLCNscr8vlAKXqZ6zMH4bXIAfI43H";
+
+  const modelPipelineMap = {
+    "model1.keras": "pipeline1.pkl",
+    "model2.keras": "pipeline2.pkl",
+  };
 
   useEffect(() => {
     const fetchResources = async () => {
@@ -40,11 +48,10 @@ const AdminModelManager = () => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("token"); // Clear token
-    window.location.href = "/"; // Redirect to login page
+    localStorage.removeItem("token");
+    window.location.href = "/";
   };
   
-  // Add a logout button in your AdminModelManager component:
   <button className="logout-button" onClick={handleLogout}>
     Logout
   </button>
@@ -54,6 +61,9 @@ const AdminModelManager = () => {
     e.preventDefault();
     setMessage("");
     setError("");
+    setRedirectToPredict(false);
+
+    const selectedPipeline = modelPipelineMap[selectedModel];
 
     try {
       const response = await axios.post(
@@ -70,10 +80,16 @@ const AdminModelManager = () => {
         }
       );
       setMessage(response.data.message);
+      setRedirectToPredict(true);
     } catch (err) {
       console.error(err);
       setError("Failed to change model or pipeline.");
     }
+  };
+
+  const handleRedirect = () => {
+    localStorage.setItem("chosen_model", selectedModel);
+    navigate("/predict");
   };
 
   return (
@@ -99,7 +115,7 @@ const AdminModelManager = () => {
           </select>
         </div>
 
-        <div className="form-group">
+        {/* <div className="form-group">
           <label htmlFor="pipeline" className="form-label">Select Pipeline</label>
           <select
             id="pipeline"
@@ -115,7 +131,7 @@ const AdminModelManager = () => {
               </option>
             ))}
           </select>
-        </div>
+        </div> */}
 
         <button type="submit" className="form-button">
           Change Model and Pipeline
@@ -124,6 +140,12 @@ const AdminModelManager = () => {
 
       {message && <div className="success-message">{message}</div>}
       {error && <div className="error-message">{error}</div>}
+
+      {redirectToPredict && (
+        <button onClick={handleRedirect} className="proceed-button">
+          Proceed to Use the Model
+        </button>
+      )}
     </div>
   );
 };
